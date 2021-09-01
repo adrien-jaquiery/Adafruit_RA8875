@@ -88,6 +88,9 @@ enum RA8875sizes {
   RA8875_800x480  /*!< 800x480 Pixel Display */
 };
 
+enum RA8875boolean { 		LAYER1, LAYER2, TRANSPARENT, LIGHTEN, OR, AND, FLOATING };
+enum RA8875writes { 		L1=0, L2, CGRAM, PATTERN, CURSOR };
+
 /**************************************************************************/
 /*!
  @struct Point
@@ -165,6 +168,13 @@ public:
   void drawPixels(uint16_t *p, uint32_t count, int16_t x, int16_t y);
   void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
   void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color);
+
+  //-------------- LAYERS --------------------------------------------------------------------------
+	void useLayers(boolean on);//mainly used to turn of layers!
+	void writeTo(enum RA8875writes d);//L1, L2, CGRAM, PATTERN, CURSOR
+	void layerEffect(enum RA8875boolean efx);//LAYER1, LAYER2, TRANSPARENT, LIGHTEN, OR, AND, FLOATING
+	void layerTransparency(uint8_t layer1,uint8_t layer2);
+	uint8_t getCurrentLayer(void); //return the current drawing layer. If layers are OFF, return 255
 
   /* HW accelerated wrapper functions (override Adafruit_GFX prototypes) */
   void fillScreen(uint16_t color);
@@ -293,13 +303,28 @@ private:
     y = temp;
   }
 
+  void setColorBpp(uint8_t colors);//set the display color space 8 or 16!
+  void waitBusy(uint8_t res=0x80);//0x80, 0x40(BTE busy), 0x01(DMA busy)
+
   uint8_t _cs, _rst;
   uint16_t _width, _height;
   uint8_t _textScale;
   uint8_t _rotation;
   uint8_t _voffset;
   enum RA8875sizes _size;
+
+  uint8_t _color_bpp;//8=256, 16=64K colors
+
+
+  //layer vars -----------------------------
+	uint8_t _currentLayer = 0;
+  bool _useMultiLayers = false;
 };
+
+#define RA8875_DPCR				  	      0x20//Display Configuration Register
+#define RA8875_LTPR0            	  0x52//Layer Transparency Register 0
+#define RA8875_LTPR1            	  0x53//Layer Transparency Register 1
+#define RA8875_MWCR1            	  0x41//Memory Write Control Register 1
 
 // Colors (RGB565)
 #define RA8875_BLACK 0x0000   ///< Black Color

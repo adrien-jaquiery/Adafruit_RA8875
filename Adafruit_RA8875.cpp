@@ -541,6 +541,180 @@ void Adafruit_RA8875::textWrite(const char *buffer, uint16_t len) {
   }
 }
 
+void Adafruit_RA8875::setColorBpp(uint8_t colors)
+{
+	if (colors != _color_bpp){//only if necessary
+		if (colors < 16) {
+			_color_bpp = 8;
+			writeReg(RA8875_SYSR,0x00);
+		} else if (colors > 8) {//65K
+			_color_bpp = 16;
+			writeReg(RA8875_SYSR,0x0C);
+			_currentLayer = 0;
+		}
+	}
+}
+
+void Adafruit_RA8875::waitBusy(uint8_t res) 
+{
+	uint8_t temp; 	
+	unsigned long start = millis();//M.Sandercock
+	do {
+		if (res == 0x01) writeCommand(RA8875_DMACR);//dma
+		temp = readStatus();
+		if ((millis() - start) > 10) return;
+	} while ((temp & res) == res);
+}
+
+/*
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
++								LAYER STUFF											 +
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+*/
+
+/**************************************************************************/
+/*!
+		Instruct the RA8875 chip to use 2 layers
+		If resolution bring to restrictions it will switch to 8 bit
+		so you can always use layers.
+		Parameters:
+		on: true (enable multiple layers), false (disable)
+      
+*/
+/**************************************************************************/
+void Adafruit_RA8875::useLayers(boolean on) 
+{
+	if (_color_bpp > 8) { //try to set up 8bit color space
+		setColorBpp(8);
+		waitBusy();
+	}
+
+  uint8_t tempReg = readReg(RA8875_DPCR);
+	if (on){
+		_useMultiLayers = true;
+		tempReg |= (1 << 7);
+	} else {
+		_useMultiLayers = false;
+		tempReg &= ~(1 << 7);
+	}
+	
+	writeReg(RA8875_DPCR,tempReg);
+	if (!_useMultiLayers && _color_bpp < 16) setColorBpp(16);//bring color back to 16
+}
+
+
+/**************************************************************************/
+/*!
+      
+*/
+/**************************************************************************/
+void Adafruit_RA8875::layerEffect(enum RA8875boolean efx)
+{
+	uint8_t	reg = 0b00000000;
+	//reg &= ~(0x07);//clear bit 2,1,0
+	if (!_useMultiLayers) useLayers(true);//turn on multiple layers if it's off
+	switch(efx){//                       bit 2,1,0 of LTPR0
+		case LAYER1: //only layer 1 visible  [000]
+			//do nothing
+		break;
+		case LAYER2: //only layer 2 visible  [001]
+			reg |= (1 << 0);
+		break;
+		case TRANSPARENT: //transparent mode [011]
+			reg |= (1 << 0); reg |= (1 << 1);
+		break;
+		case LIGHTEN: //lighten-overlay mode [010]
+			reg |= (1 << 1);
+		break;
+		case OR: //boolean OR mode           [100]
+			reg |= (1 << 2);
+		break;
+		case AND: //boolean AND mode         [101]
+			reg |= (1 << 0); reg |= (1 << 2);
+		break;
+		case FLOATING: //floating windows    [110]
+			reg |= (1 << 1); reg |= (1 << 2);
+		break;
+		default:
+			//do nothing
+		break;
+	}
+	_writeRegister(RA8875_LTPR0,reg);
+}
+
+/**************************************************************************/
+/*!
+      
+*/
+/**************************************************************************/
+void Adafruit_RA8875::layerTransparency(uint8_t layer1,uint8_t layer2)
+{
+	if (layer1 > 8) layer1 = 8;
+	if (layer2 > 8) layer2 = 8;
+	if (!_useMultiLayers) useLayers(true);//turn on multiple layers if it's off
+	_writeRegister(RA8875_LTPR1, ((layer2 & 0xF) << 4) | (layer1 & 0xF));
+}
+
+
+/**************************************************************************/
+/*! return the current drawing layer. If layers are OFF, return 255
+*/
+/**************************************************************************/
+uint8_t Adafruit_RA8875::getCurrentLayer(void)
+{
+	if (!_useMultiLayers) return 255;
+	return _currentLayer;
+}
+
+/**************************************************************************/
+/*! This is the most important function to write on:
+	LAYERS
+	CGRAM
+	PATTERN
+	CURSOR
+	Parameter:
+	d (L1, L2, CGRAM, PATTERN, CURSOR)
+	When writing on layers 0 or 1, if the layers are not enable it will enable automatically
+	If the display doesn't support layers, it will automatically switch to 8bit color
+	Remember that when layers are ON you need to disable manually, once that only Layer 1 will be visible
+*/
+/**************************************************************************/
+void Adafruit_RA8875::writeTo(enum RA8875writes d)
+{
+	uint8_t temp = readReg(RA8875_MWCR1);
+	switch(d){
+		case L1:
+			temp &= ~((1<<3) | (1<<2));// Clear bits 3 and 2
+			temp &= ~(1 << 0); //clear bit 0
+			_currentLayer = 0;
+			writeData(temp);  
+			if (!_useMultiLayers) useLayers(true);
+		break;
+		case L2:
+			temp &= ~((1<<3) | (1<<2));// Clear bits 3 and 2
+			temp |= (1 << 0); //bit set 0
+			_currentLayer = 1;
+			writeData(temp);  
+			if (!_useMultiLayers) useLayers(true);
+		break;
+		case CGRAM: 
+			
+		break;
+		case PATTERN:
+			temp |= (1 << 3); //bit set 3
+			temp |= (1 << 2); //bit set 2
+			writeData(temp);  
+		break;
+		case CURSOR:
+			temp |= (1 << 3); //bit set 3
+			temp &= ~(1 << 2); //clear bit 2
+			writeData(temp);  
+		break;
+		default:
+		return;
+	}   
+}
+
 /************************* Graphics ***********************************/
 
 /**************************************************************************/
