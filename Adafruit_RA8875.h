@@ -162,8 +162,11 @@ public:
   void setXY(uint16_t x, uint16_t y);
   void pushPixels(uint32_t num, uint16_t p);
   void fillRect(void);
-  void drawBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
+  void draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
                               int16_t w, int16_t h, uint8_t color);
+  void draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
+                              int16_t w, int16_t h, uint8_t color,
+                              uint8_t bg);
 
   /* Adafruit_GFX functions */
   void drawPixel(int16_t x, int16_t y, uint16_t color);
