@@ -325,6 +325,7 @@ private:
 #define RA8875_LTPR0            	  0x52//Layer Transparency Register 0
 #define RA8875_LTPR1            	  0x53//Layer Transparency Register 1
 #define RA8875_MWCR1            	  0x41//Memory Write Control Register 1
+#define RA8875_DMACR				  0xBF//DMA Configuration REG
 
 // Colors (RGB565)
 #define RA8875_BLACK 0x0000   ///< Black Color

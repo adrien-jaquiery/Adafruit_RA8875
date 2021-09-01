@@ -639,7 +639,7 @@ void Adafruit_RA8875::layerEffect(enum RA8875boolean efx)
 			//do nothing
 		break;
 	}
-	_writeRegister(RA8875_LTPR0,reg);
+	writeReg(RA8875_LTPR0,reg);
 }
 
 /**************************************************************************/
@@ -652,7 +652,7 @@ void Adafruit_RA8875::layerTransparency(uint8_t layer1,uint8_t layer2)
 	if (layer1 > 8) layer1 = 8;
 	if (layer2 > 8) layer2 = 8;
 	if (!_useMultiLayers) useLayers(true);//turn on multiple layers if it's off
-	_writeRegister(RA8875_LTPR1, ((layer2 & 0xF) << 4) | (layer1 & 0xF));
+	writeReg(RA8875_LTPR1, ((layer2 & 0xF) << 4) | (layer1 & 0xF));
 }
 
 
