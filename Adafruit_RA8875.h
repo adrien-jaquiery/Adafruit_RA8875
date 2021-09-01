@@ -344,11 +344,11 @@ private:
 #define RA8875_WHITE 0xFFFF   ///< White Color
 
 // Colors (RGB332)
-#define RA8875_BLACK 0x0000   ///< Black Color
-#define RA8875_BLUE 0b00000011    ///< Blue Color
-#define RA8875_RED 0b11100000     ///< Red Color
-#define RA8875_GREEN 0b00011100   ///< Green Color
-#define RA8875_WHITE 0b11111111   ///< White Color
+#define RA8875_BLACK_8BIT 0x0000   ///< Black Color
+#define RA8875_BLUE_8BIT 0b00000011    ///< Blue Color
+#define RA8875_RED_8BIT 0b11100000     ///< Red Color
+#define RA8875_GREEN_8BIT 0b00011100   ///< Green Color
+#define RA8875_WHITE_8BIT 0b11111111   ///< White Color
 
 // Command/Data pins for SPI
 #define RA8875_DATAWRITE 0x00 ///< See datasheet
