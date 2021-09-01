@@ -855,9 +855,33 @@ void Adafruit_RA8875::drawPixel(int16_t x, int16_t y, uint16_t color) {
 
 /**************************************************************************/
 /*!
+      Draws a single pixel at the specified location
+
+      @param x     The 0-based x location
+      @param y     The 0-base y location
+      @param color The RGB332 color to use when drawing the pixel
+*/
+/**************************************************************************/
+void Adafruit_RA8875::draw8BitPixel(int16_t x, int16_t y, uint8_t color) {
+  x = applyRotationX(x);
+  y = applyRotationY(y);
+
+  writeReg(RA8875_CURH0, x);
+  writeReg(RA8875_CURH1, x >> 8);
+  writeReg(RA8875_CURV0, y);
+  writeReg(RA8875_CURV1, y >> 8);
+  writeCommand(RA8875_MRWC);
+  digitalWrite(_cs, LOW);
+  SPI.transfer(RA8875_DATAWRITE);
+  SPI.transfer(color);
+  digitalWrite(_cs, HIGH);
+}
+
+/**************************************************************************/
+/*!
  Draws a series of pixels at the specified location without the overhead
 
- @param p     An array of RGB565 color pixels
+ @param p     An array of RGB332 color pixels
  @param num   The number of the pixels to draw
  @param x     The 0-based x location
  @param y     The 0-base y location
@@ -886,6 +910,74 @@ void Adafruit_RA8875::drawPixels(uint16_t *p, uint32_t num, int16_t x,
     SPI.transfer16(*p++);
   }
   digitalWrite(_cs, HIGH);
+}
+
+// BITMAP / XBITMAP / GRAYSCALE / RGB BITMAP FUNCTIONS ---------------------
+
+/**************************************************************************/
+/*!
+   @brief      Draw a PROGMEM-resident 1-bit image at the specified (x,y)
+   position, using the specified foreground color (unset bits are transparent).
+    @param    x   Top left corner x coordinate
+    @param    y   Top left corner y coordinate
+    @param    bitmap  byte array with monochrome bitmap
+    @param    w   Width of bitmap in pixels
+    @param    h   Height of bitmap in pixels
+    @param    color 8-bit 3-3-6 Color to draw with
+*/
+/**************************************************************************/
+void Adafruit_RA8875::draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
+                              int16_t w, int16_t h, uint8_t color) {
+
+  int16_t byteWidth = (w + 7) / 8; // Bitmap scanline pad = whole byte
+  uint8_t byte = 0;
+
+  startWrite();
+  for (int16_t j = 0; j < h; j++, y++) {
+    for (int16_t i = 0; i < w; i++) {
+      if (i & 7)
+        byte <<= 1;
+      else
+        byte = pgm_read_byte(&bitmap[j * byteWidth + i / 8]);
+      if (byte & 0x80)
+        draw8BitPixel(x + i, y, color);
+    }
+  }
+  endWrite();
+}
+
+/**************************************************************************/
+/*!
+   @brief      Draw a PROGMEM-resident 1-bit image at the specified (x,y)
+   position, using the specified foreground (for set bits) and background (unset
+   bits) colors.
+    @param    x   Top left corner x coordinate
+    @param    y   Top left corner y coordinate
+    @param    bitmap  byte array with monochrome bitmap
+    @param    w   Width of bitmap in pixels
+    @param    h   Height of bitmap in pixels
+    @param    color 16-bit 5-6-5 Color to draw pixels with
+    @param    bg 16-bit 5-6-5 Color to draw background with
+*/
+/**************************************************************************/
+void Adafruit_RA8875::draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
+                              int16_t w, int16_t h, uint8_t color,
+                              uint8_t bg) {
+
+  int16_t byteWidth = (w + 7) / 8; // Bitmap scanline pad = whole byte
+  uint8_t byte = 0;
+
+  startWrite();
+  for (int16_t j = 0; j < h; j++, y++) {
+    for (int16_t i = 0; i < w; i++) {
+      if (i & 7)
+        byte <<= 1;
+      else
+        byte = pgm_read_byte(&bitmap[j * byteWidth + i / 8]);
+      draw8BitPixel(x + i, y, (byte & 0x80) ? color : bg);
+    }
+  }
+  endWrite();
 }
 
 /**************************************************************************/

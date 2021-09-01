@@ -162,9 +162,12 @@ public:
   void setXY(uint16_t x, uint16_t y);
   void pushPixels(uint32_t num, uint16_t p);
   void fillRect(void);
+  void drawBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
+                              int16_t w, int16_t h, uint8_t color);
 
   /* Adafruit_GFX functions */
   void drawPixel(int16_t x, int16_t y, uint16_t color);
+  void draw8BitPixel(int16_t x, int16_t y, uint8_t color);
   void drawPixels(uint16_t *p, uint32_t count, int16_t x, int16_t y);
   void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
   void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color);
@@ -336,6 +339,13 @@ private:
 #define RA8875_MAGENTA 0xF81F ///< Magenta Color
 #define RA8875_YELLOW 0xFFE0  ///< Yellow Color
 #define RA8875_WHITE 0xFFFF   ///< White Color
+
+// Colors (RGB332)
+#define RA8875_BLACK 0x0000   ///< Black Color
+#define RA8875_BLUE 0b00000011    ///< Blue Color
+#define RA8875_RED 0b11100000     ///< Red Color
+#define RA8875_GREEN 0b00011100   ///< Green Color
+#define RA8875_WHITE 0b11111111   ///< White Color
 
 // Command/Data pins for SPI
 #define RA8875_DATAWRITE 0x00 ///< See datasheet
