@@ -35,11 +35,11 @@
 #include "Adafruit_RA8875.h"
 
 /// @cond DISABLE
-#if defined(EEPROM_SUPPORTED)
+//#if defined(EEPROM_SUPPORTED)
 /// @endcond
 #include <EEPROM.h>
 /// @cond DISABLE
-#endif
+//#endif
 /// @endcond
 
 #include <SPI.h>
