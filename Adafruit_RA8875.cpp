@@ -341,10 +341,18 @@ int8_t Adafruit_RA8875::getRotation(void) { return _rotation; }
 void Adafruit_RA8875::setRotation(int8_t rotation) {
   uint8_t tempReg = readReg(RA8875_DPCR);
   switch (rotation) {
+  case 1:
+    tempReg |= (1 << 3);
+    tempReg &= ~(1 << 2);
+    break;
   case 2:
     tempReg |= (1 << 3);	
     tempReg |= (1 << 2);
     _rotation = rotation;
+    break;
+  case 3:
+    tempReg |= (1 << 2);
+    tempReg &= ~(1 << 3);
     break;
   default:
     tempReg &= ~(1 << 3);
@@ -811,7 +819,7 @@ void Adafruit_RA8875::fillRect(void) {
 /**************************************************************************/
 int16_t Adafruit_RA8875::applyRotationX(int16_t x) {
   switch (_rotation) {
-  case 2:
+  case 1: case 2:
     x = _width - 1 - x;
     break;
   }
@@ -828,7 +836,7 @@ int16_t Adafruit_RA8875::applyRotationX(int16_t x) {
 /**************************************************************************/
 int16_t Adafruit_RA8875::applyRotationY(int16_t y) {
   switch (_rotation) {
-  case 2:
+  case 2: case 3:
     y = _height - 1 - y;
     break;
   }
