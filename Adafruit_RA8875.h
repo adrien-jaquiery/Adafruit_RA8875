@@ -76,6 +76,9 @@
 /// @endcond
 // Sizes!
 
+
+#include "RA8875Registers.h"
+
 /**************************************************************************/
 /*!
  @enum RA8875sizes The Supported Screen Sizes
@@ -88,8 +91,8 @@ enum RA8875sizes {
   RA8875_800x480  /*!< 800x480 Pixel Display */
 };
 
-enum RA8875boolean { 		LAYER1, LAYER2, TRANSPARENT, LIGHTEN, OR, AND, FLOATING };
-enum RA8875writes { 		L1=0, L2, CGRAM, PATTERN, CURSOR };
+enum RA8875boolean : uint8_t{ 		LAYER1, LAYER2, TRANSPARENT, LIGHTEN, OR, AND, FLOATING };
+enum RA8875writes : uint8_t{ 		L1=0, L2, CGRAM, PATTERN, CURSOR };
 
 /**************************************************************************/
 /*!
@@ -103,8 +106,8 @@ enum RA8875writes { 		L1=0, L2, CGRAM, PATTERN, CURSOR };
  */
 /**************************************************************************/
 typedef struct Point {
-  int32_t x;
-  int32_t y;
+  uint16_t x;
+  uint16_t y;
 } tsPoint_t; ///< Nameless struct variable!
 
 /**************************************************************************/
@@ -162,15 +165,14 @@ public:
   void setXY(uint16_t x, uint16_t y);
   void pushPixels(uint32_t num, uint16_t p);
   void fillRect(void);
-  void draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
-                              int16_t w, int16_t h, uint8_t color);
-  void draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
-                              int16_t w, int16_t h, uint8_t color,
-                              uint8_t bg);
+  void drawBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
+                            int16_t w, int16_t h, uint8_t color);
+  void drawBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
+                            int16_t w, int16_t h, uint8_t color,
+                            uint8_t bg);
 
   /* Adafruit_GFX functions */
   void drawPixel(int16_t x, int16_t y, uint16_t color);
-  void draw8BitPixel(int16_t x, int16_t y, uint8_t color);
   void drawPixels(uint16_t *p, uint32_t count, int16_t x, int16_t y);
   void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
   void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color);
@@ -230,8 +232,9 @@ public:
   /* Touch screen calibration persistence*/
   uint32_t eepromReadS32(int location);
   void eepromWriteS32(int location, int32_t value);
-  bool readCalibration(int location, tsMatrix_t *matrixPtr);
-  void writeCalibration(int location, tsMatrix_t *matrixPtr);
+  bool readCalibration(int location);
+  void writeCalibration(int location);
+  tsPoint_t CalibrateTSPoint(tsPoint_t &screenPtr);
 /// @cond DISABLE
 #endif
   /// @endcond
@@ -311,6 +314,8 @@ private:
 
   void setColorBpp(uint8_t colors);//set the display color space 8 or 16!
   void waitBusy(uint8_t res=0x80);//0x80, 0x40(BTE busy), 0x01(DMA busy)
+  void write8BitColor(uint8_t color);
+  void write16BitColor(uint16_t color);
 
   uint8_t _cs, _rst;
   uint16_t _width, _height;
@@ -319,19 +324,21 @@ private:
   uint8_t _voffset;
   enum RA8875sizes _size;
 
-  uint8_t _color_bpp;//8=256, 16=64K colors
+  uint8_t _color_bpp = 16; //8=256, 16=64K colors
+  bool _textMode = true;
 
+  tsMatrix_t _tsMatrix;
 
   //layer vars -----------------------------
 	uint8_t _currentLayer = 0;
   bool _useMultiLayers = false;
-};
 
-#define RA8875_DPCR				  	      0x20//Display Configuration Register
-#define RA8875_LTPR0            	  0x52//Layer Transparency Register 0
-#define RA8875_LTPR1            	  0x53//Layer Transparency Register 1
-#define RA8875_MWCR1            	  0x41//Memory Write Control Register 1
-#define RA8875_DMACR				  0xBF//DMA Configuration REG
+  //convert a 16bit color(565) into 8bit color(332) as requested by RA8875 datasheet
+	inline __attribute__((always_inline))
+		uint8_t _color16To8bpp(uint16_t color) {
+			return ((color & 0x3800) >> 6 | (color & 0x00E0) >> 3 | (color & 0x0003));
+		}
+};
 
 // Colors (RGB565)
 #define RA8875_BLACK 0x0000   ///< Black Color

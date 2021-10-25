@@ -339,14 +339,20 @@ int8_t Adafruit_RA8875::getRotation(void) { return _rotation; }
  */
 /**************************************************************************/
 void Adafruit_RA8875::setRotation(int8_t rotation) {
+  uint8_t tempReg = readReg(RA8875_DPCR);
   switch (rotation) {
   case 2:
+    tempReg |= (1 << 3);	
+    tempReg |= (1 << 2);
     _rotation = rotation;
     break;
   default:
+    tempReg &= ~(1 << 3);
+    tempReg &= ~(1 << 2);
     _rotation = 0;
     break;
   }
+  writeReg(RA8875_DPCR,tempReg);
 }
 
 /************************* Text Mode ***********************************/
@@ -379,8 +385,8 @@ void Adafruit_RA8875::textMode(void) {
 */
 /**************************************************************************/
 void Adafruit_RA8875::textSetCursor(uint16_t x, uint16_t y) {
-  x = applyRotationX(x);
-  y = applyRotationY(y);
+  // x = applyRotationX(x);
+  // y = applyRotationY(y);
 
   /* Set cursor location */
   writeCommand(0x2A);
@@ -434,12 +440,12 @@ void Adafruit_RA8875::textColor(uint16_t foreColor, uint16_t bgColor) {
 /**************************************************************************/
 void Adafruit_RA8875::textTransparent(uint16_t foreColor) {
   /* Set Fore Color */
-  writeCommand(0x63);
-  writeData((foreColor & 0xf800) >> 11);
-  writeCommand(0x64);
-  writeData((foreColor & 0x07e0) >> 5);
-  writeCommand(0x65);
-  writeData((foreColor & 0x001f));
+  if(_color_bpp == 16) {
+    write16BitColor(foreColor);
+  }
+  else if(_color_bpp == 8) {
+    write8BitColor(foreColor);
+  }
 
   /* Set transparency flag */
   writeCommand(0x22);
@@ -776,7 +782,9 @@ void Adafruit_RA8875::pushPixels(uint32_t num, uint16_t p) {
   digitalWrite(_cs, LOW);
   SPI.transfer(RA8875_DATAWRITE);
   while (num--) {
-    SPI.transfer(p >> 8);
+    if(_color_bpp == 16) {
+      SPI.transfer(p >> 8);
+    }
     SPI.transfer(p);
   }
   digitalWrite(_cs, HIGH);
@@ -838,8 +846,8 @@ int16_t Adafruit_RA8875::applyRotationY(int16_t y) {
 */
 /**************************************************************************/
 void Adafruit_RA8875::drawPixel(int16_t x, int16_t y, uint16_t color) {
-  x = applyRotationX(x);
-  y = applyRotationY(y);
+  // x = applyRotationX(x);
+  // y = applyRotationY(y);
 
   writeReg(RA8875_CURH0, x);
   writeReg(RA8875_CURH1, x >> 8);
@@ -848,31 +856,9 @@ void Adafruit_RA8875::drawPixel(int16_t x, int16_t y, uint16_t color) {
   writeCommand(RA8875_MRWC);
   digitalWrite(_cs, LOW);
   SPI.transfer(RA8875_DATAWRITE);
-  SPI.transfer(color >> 8);
-  SPI.transfer(color);
-  digitalWrite(_cs, HIGH);
-}
-
-/**************************************************************************/
-/*!
-      Draws a single pixel at the specified location
-
-      @param x     The 0-based x location
-      @param y     The 0-base y location
-      @param color The RGB332 color to use when drawing the pixel
-*/
-/**************************************************************************/
-void Adafruit_RA8875::draw8BitPixel(int16_t x, int16_t y, uint8_t color) {
-  x = applyRotationX(x);
-  y = applyRotationY(y);
-
-  writeReg(RA8875_CURH0, x);
-  writeReg(RA8875_CURH1, x >> 8);
-  writeReg(RA8875_CURV0, y);
-  writeReg(RA8875_CURV1, y >> 8);
-  writeCommand(RA8875_MRWC);
-  digitalWrite(_cs, LOW);
-  SPI.transfer(RA8875_DATAWRITE);
+  if(_color_bpp == 16) {
+    SPI.transfer(color >> 8);
+  }
   SPI.transfer(color);
   digitalWrite(_cs, HIGH);
 }
@@ -889,8 +875,8 @@ void Adafruit_RA8875::draw8BitPixel(int16_t x, int16_t y, uint8_t color) {
 /**************************************************************************/
 void Adafruit_RA8875::drawPixels(uint16_t *p, uint32_t num, int16_t x,
                                  int16_t y) {
-  x = applyRotationX(x);
-  y = applyRotationY(y);
+  // x = applyRotationX(x);
+  // y = applyRotationY(y);
 
   writeReg(RA8875_CURH0, x);
   writeReg(RA8875_CURH1, x >> 8);
@@ -898,9 +884,9 @@ void Adafruit_RA8875::drawPixels(uint16_t *p, uint32_t num, int16_t x,
   writeReg(RA8875_CURV1, y >> 8);
 
   uint8_t dir = RA8875_MWCR0_LRTD;
-  if (_rotation == 2) {
-    dir = RA8875_MWCR0_RLTD;
-  }
+  // if (_rotation == 2) {
+  //   dir = RA8875_MWCR0_RLTD;
+  // }
   writeReg(RA8875_MWCR0, (readReg(RA8875_MWCR0) & ~RA8875_MWCR0_DIRMASK) | dir);
 
   writeCommand(RA8875_MRWC);
@@ -911,8 +897,6 @@ void Adafruit_RA8875::drawPixels(uint16_t *p, uint32_t num, int16_t x,
   }
   digitalWrite(_cs, HIGH);
 }
-
-// BITMAP / XBITMAP / GRAYSCALE / RGB BITMAP FUNCTIONS ---------------------
 
 /**************************************************************************/
 /*!
@@ -926,7 +910,7 @@ void Adafruit_RA8875::drawPixels(uint16_t *p, uint32_t num, int16_t x,
     @param    color 8-bit 3-3-6 Color to draw with
 */
 /**************************************************************************/
-void Adafruit_RA8875::draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
+void Adafruit_RA8875::drawBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
                               int16_t w, int16_t h, uint8_t color) {
 
   int16_t byteWidth = (w + 7) / 8; // Bitmap scanline pad = whole byte
@@ -940,7 +924,7 @@ void Adafruit_RA8875::draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[
       else
         byte = pgm_read_byte(&bitmap[j * byteWidth + i / 8]);
       if (byte & 0x80)
-        draw8BitPixel(x + i, y, color);
+        drawPixel(x + i, y, color);
     }
   }
   endWrite();
@@ -960,7 +944,7 @@ void Adafruit_RA8875::draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[
     @param    bg 16-bit 5-6-5 Color to draw background with
 */
 /**************************************************************************/
-void Adafruit_RA8875::draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
+void Adafruit_RA8875::drawBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
                               int16_t w, int16_t h, uint8_t color,
                               uint8_t bg) {
 
@@ -974,7 +958,7 @@ void Adafruit_RA8875::draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[
         byte <<= 1;
       else
         byte = pgm_read_byte(&bitmap[j * byteWidth + i / 8]);
-      draw8BitPixel(x + i, y, (byte & 0x80) ? color : bg);
+      drawPixel(x + i, y, (byte & 0x80) ? color : bg);
     }
   }
   endWrite();
@@ -993,10 +977,10 @@ void Adafruit_RA8875::draw8BitBitmap(int16_t x, int16_t y, const uint8_t bitmap[
 /**************************************************************************/
 void Adafruit_RA8875::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
                                uint16_t color) {
-  x0 = applyRotationX(x0);
-  y0 = applyRotationY(y0);
-  x1 = applyRotationX(x1);
-  y1 = applyRotationY(y1);
+  // x0 = applyRotationX(x0);
+  // y0 = applyRotationY(y0);
+  // x1 = applyRotationX(x1);
+  // y1 = applyRotationY(y1);
 
   /* Set X */
   writeCommand(0x91);
@@ -1022,13 +1006,13 @@ void Adafruit_RA8875::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
   writeCommand(0x98);
   writeData((y1) >> 8);
 
-  /* Set Color */
-  writeCommand(0x63);
-  writeData((color & 0xf800) >> 11);
-  writeCommand(0x64);
-  writeData((color & 0x07e0) >> 5);
-  writeCommand(0x65);
-  writeData((color & 0x001f));
+    /* Set Color */
+  if(_color_bpp == 16) {
+    write16BitColor(color);
+  }
+  else if(_color_bpp == 8) {
+    write8BitColor(color);
+  }
 
   /* Draw! */
   writeCommand(RA8875_DCR);
@@ -1298,8 +1282,8 @@ void Adafruit_RA8875::fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h,
 /**************************************************************************/
 void Adafruit_RA8875::circleHelper(int16_t x, int16_t y, int16_t r,
                                    uint16_t color, bool filled) {
-  x = applyRotationX(x);
-  y = applyRotationY(y);
+  // x = applyRotationX(x);
+  // y = applyRotationY(y);
 
   /* Set X */
   writeCommand(0x99);
@@ -1318,12 +1302,12 @@ void Adafruit_RA8875::circleHelper(int16_t x, int16_t y, int16_t r,
   writeData(r);
 
   /* Set Color */
-  writeCommand(0x63);
-  writeData((color & 0xf800) >> 11);
-  writeCommand(0x64);
-  writeData((color & 0x07e0) >> 5);
-  writeCommand(0x65);
-  writeData((color & 0x001f));
+  if(_color_bpp == 16) {
+    write16BitColor(color);
+  }
+  else if(_color_bpp == 8) {
+    write8BitColor(color);
+  }
 
   /* Draw! */
   writeCommand(RA8875_DCR);
@@ -1344,10 +1328,10 @@ void Adafruit_RA8875::circleHelper(int16_t x, int16_t y, int16_t r,
 /**************************************************************************/
 void Adafruit_RA8875::rectHelper(int16_t x, int16_t y, int16_t w, int16_t h,
                                  uint16_t color, bool filled) {
-  x = applyRotationX(x);
-  y = applyRotationY(y);
-  w = applyRotationX(w);
-  h = applyRotationY(h);
+  // x = applyRotationX(x);
+  // y = applyRotationY(y);
+  // w = applyRotationX(w);
+  // h = applyRotationY(h);
 
   /* Set X */
   writeCommand(0x91);
@@ -1374,12 +1358,12 @@ void Adafruit_RA8875::rectHelper(int16_t x, int16_t y, int16_t w, int16_t h,
   writeData((h) >> 8);
 
   /* Set Color */
-  writeCommand(0x63);
-  writeData((color & 0xf800) >> 11);
-  writeCommand(0x64);
-  writeData((color & 0x07e0) >> 5);
-  writeCommand(0x65);
-  writeData((color & 0x001f));
+  if(_color_bpp == 16) {
+    write16BitColor(color);
+  }
+  else if(_color_bpp == 8) {
+    write8BitColor(color);
+  }
 
   /* Draw! */
   writeCommand(RA8875_DCR);
@@ -1401,12 +1385,12 @@ void Adafruit_RA8875::rectHelper(int16_t x, int16_t y, int16_t w, int16_t h,
 void Adafruit_RA8875::triangleHelper(int16_t x0, int16_t y0, int16_t x1,
                                      int16_t y1, int16_t x2, int16_t y2,
                                      uint16_t color, bool filled) {
-  x0 = applyRotationX(x0);
-  y0 = applyRotationY(y0);
-  x1 = applyRotationX(x1);
-  y1 = applyRotationY(y1);
-  x2 = applyRotationX(x2);
-  y2 = applyRotationY(y2);
+  // x0 = applyRotationX(x0);
+  // y0 = applyRotationY(y0);
+  // x1 = applyRotationX(x1);
+  // y1 = applyRotationY(y1);
+  // x2 = applyRotationX(x2);
+  // y2 = applyRotationY(y2);
 
   /* Set Point 0 */
   writeCommand(0x91);
@@ -1439,12 +1423,12 @@ void Adafruit_RA8875::triangleHelper(int16_t x0, int16_t y0, int16_t x1,
   writeData(y2 >> 8);
 
   /* Set Color */
-  writeCommand(0x63);
-  writeData((color & 0xf800) >> 11);
-  writeCommand(0x64);
-  writeData((color & 0x07e0) >> 5);
-  writeCommand(0x65);
-  writeData((color & 0x001f));
+  if(_color_bpp == 16) {
+    write16BitColor(color);
+  }
+  else if(_color_bpp == 8) {
+    write8BitColor(color);
+  }
 
   /* Draw! */
   writeCommand(RA8875_DCR);
@@ -1466,8 +1450,8 @@ void Adafruit_RA8875::triangleHelper(int16_t x0, int16_t y0, int16_t x1,
 void Adafruit_RA8875::ellipseHelper(int16_t xCenter, int16_t yCenter,
                                     int16_t longAxis, int16_t shortAxis,
                                     uint16_t color, bool filled) {
-  xCenter = applyRotationX(xCenter);
-  yCenter = applyRotationY(yCenter);
+  // xCenter = applyRotationX(xCenter);
+  // yCenter = applyRotationY(yCenter);
 
   /* Set Center Point */
   writeCommand(0xA5);
@@ -1490,12 +1474,12 @@ void Adafruit_RA8875::ellipseHelper(int16_t xCenter, int16_t yCenter,
   writeData(shortAxis >> 8);
 
   /* Set Color */
-  writeCommand(0x63);
-  writeData((color & 0xf800) >> 11);
-  writeCommand(0x64);
-  writeData((color & 0x07e0) >> 5);
-  writeCommand(0x65);
-  writeData((color & 0x001f));
+  if(_color_bpp == 16) {
+    write16BitColor(color);
+  }
+  else if(_color_bpp == 8) {
+    write8BitColor(color);
+  }
 
   /* Draw! */
   writeCommand(0xA0);
@@ -1518,9 +1502,9 @@ void Adafruit_RA8875::curveHelper(int16_t xCenter, int16_t yCenter,
                                   int16_t longAxis, int16_t shortAxis,
                                   uint8_t curvePart, uint16_t color,
                                   bool filled) {
-  xCenter = applyRotationX(xCenter);
-  yCenter = applyRotationY(yCenter);
-  curvePart = (curvePart + _rotation) % 4;
+  // xCenter = applyRotationX(xCenter);
+  // yCenter = applyRotationY(yCenter);
+  curvePart = (curvePart /*+ _rotation*/) % 4;
 
   /* Set Center Point */
   writeCommand(0xA5);
@@ -1543,12 +1527,12 @@ void Adafruit_RA8875::curveHelper(int16_t xCenter, int16_t yCenter,
   writeData(shortAxis >> 8);
 
   /* Set Color */
-  writeCommand(0x63);
-  writeData((color & 0xf800) >> 11);
-  writeCommand(0x64);
-  writeData((color & 0x07e0) >> 5);
-  writeCommand(0x65);
-  writeData((color & 0x001f));
+  if(_color_bpp == 16) {
+    write16BitColor(color);
+  }
+  else if(_color_bpp == 8) {
+    write8BitColor(color);
+  }
 
   /* Draw! */
   writeCommand(0xA0);
@@ -1570,10 +1554,10 @@ void Adafruit_RA8875::curveHelper(int16_t xCenter, int16_t yCenter,
 void Adafruit_RA8875::roundRectHelper(int16_t x, int16_t y, int16_t w,
                                       int16_t h, int16_t r, uint16_t color,
                                       bool filled) {
-  x = applyRotationX(x);
-  y = applyRotationY(y);
-  w = applyRotationX(w);
-  h = applyRotationY(h);
+  // x = applyRotationX(x);
+  // y = applyRotationY(y);
+  // w = applyRotationX(w);
+  // h = applyRotationY(h);
   if (x > w)
     swap(x, w);
   if (y > h)
@@ -1614,12 +1598,12 @@ void Adafruit_RA8875::roundRectHelper(int16_t x, int16_t y, int16_t w,
   writeData((r) >> 8);
 
   /* Set Color */
-  writeCommand(0x63);
-  writeData((color & 0xf800) >> 11);
-  writeCommand(0x64);
-  writeData((color & 0x07e0) >> 5);
-  writeCommand(0x65);
-  writeData((color & 0x001f));
+  if(_color_bpp == 16) {
+    write16BitColor(color);
+  }
+  else if(_color_bpp == 8) {
+    write8BitColor(color);
+  }
 
   /* Draw! */
   writeCommand(RA8875_ELLIPSE);
@@ -1831,19 +1815,25 @@ boolean Adafruit_RA8875::touched(void) {
 */
 /**************************************************************************/
 boolean Adafruit_RA8875::touchRead(uint16_t *x, uint16_t *y) {
-  uint16_t tx, ty;
   uint8_t temp;
+  tsPoint_t pointRaw;
 
-  tx = readReg(RA8875_TPXH);
-  ty = readReg(RA8875_TPYH);
+  pointRaw.x = readReg(RA8875_TPXH);
+  pointRaw.y = readReg(RA8875_TPYH);
   temp = readReg(RA8875_TPXYL);
-  tx <<= 2;
-  ty <<= 2;
-  tx |= temp & 0x03;        // get the bottom x bits
-  ty |= (temp >> 2) & 0x03; // get the bottom y bits
+  pointRaw.x <<= 2;
+  pointRaw.y <<= 2;
+  pointRaw.x |= temp & 0x03;        // get the bottom x bits
+  pointRaw.y |= (temp >> 2) & 0x03; // get the bottom y bits
 
-  *x = tx;
-  *y = ty;
+  tsPoint_t point = CalibrateTSPoint(pointRaw);
+
+  if(x != nullptr && y != nullptr) {
+    *x = point.x;
+    *y = point.y;
+    *x = applyRotationX(*x);
+    *y = applyRotationY(*y);
+  }
 
   /* Clear TP INT Status */
   writeReg(RA8875_INTC2, RA8875_INTC2_TP);
@@ -2025,19 +2015,19 @@ void Adafruit_RA8875::eepromWriteS32(int location, int32_t value) {
      @return success
  */
 /**************************************************************************/
-bool Adafruit_RA8875::readCalibration(int location, tsMatrix_t *matrixPtr) {
+bool Adafruit_RA8875::readCalibration(int location) {
   if (location + sizeof(tsMatrix_t) > EEPROMSIZE) {
     return false; // readCalibration::Calibration location outside of EEPROM
                   // memory bound
   }
   if (EEPROM.read(location + CFG_EEPROM_TOUCHSCREEN_CALIBRATED) == 1) {
-    matrixPtr->An = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_AN);
-    matrixPtr->Bn = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_BN);
-    matrixPtr->Cn = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_CN);
-    matrixPtr->Dn = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_DN);
-    matrixPtr->En = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_EN);
-    matrixPtr->Fn = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_FN);
-    matrixPtr->Divider =
+    _tsMatrix.An = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_AN);
+    _tsMatrix.Bn = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_BN);
+    _tsMatrix.Cn = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_CN);
+    _tsMatrix.Dn = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_DN);
+    _tsMatrix.En = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_EN);
+    _tsMatrix.Fn = eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_FN);
+    _tsMatrix.Divider =
         eepromReadS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_DIVIDER);
     return true;
   }
@@ -2052,21 +2042,71 @@ bool Adafruit_RA8875::readCalibration(int location, tsMatrix_t *matrixPtr) {
      @param matrixPtr The pointer to the Matrix Variable
  */
 /**************************************************************************/
-void Adafruit_RA8875::writeCalibration(int location, tsMatrix_t *matrixPtr) {
+void Adafruit_RA8875::writeCalibration(int location) {
   if (location + sizeof(tsMatrix_t) <
       EEPROMSIZE) { // Check to see it calibration location outside of EEPROM
                     // memory bound
-    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_AN, matrixPtr->An);
-    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_BN, matrixPtr->Bn);
-    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_CN, matrixPtr->Cn);
-    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_DN, matrixPtr->Dn);
-    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_EN, matrixPtr->En);
-    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_FN, matrixPtr->Fn);
+    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_AN, _tsMatrix.An);
+    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_BN, _tsMatrix.Bn);
+    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_CN, _tsMatrix.Cn);
+    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_DN, _tsMatrix.Dn);
+    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_EN, _tsMatrix.En);
+    eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_FN, _tsMatrix.Fn);
     eepromWriteS32(location + CFG_EEPROM_TOUCHSCREEN_CAL_DIVIDER,
-                   matrixPtr->Divider);
+                   _tsMatrix.Divider);
     EEPROM.write(location + CFG_EEPROM_TOUCHSCREEN_CALIBRATED, 1);
   }
 }
+
+tsPoint_t Adafruit_RA8875::CalibrateTSPoint(tsPoint_t &screenPtr) {
+    tsPoint_t tsPoint = {0};
+    if( _tsMatrix.Divider != 0 ) {
+        tsPoint.x = ( (_tsMatrix.An * screenPtr.x) +
+                      (_tsMatrix.Bn * screenPtr.y) +
+                       _tsMatrix.Cn
+                    ) / _tsMatrix.Divider ;
+
+        tsPoint.y = ( (_tsMatrix.Dn * screenPtr.x) +
+                      (_tsMatrix.En * screenPtr.y) +
+                       _tsMatrix.Fn
+                    ) / _tsMatrix.Divider ;
+    }
+    return tsPoint;
+}
+
+/**************************************************************************/
+/*!
+     Write 8 Bit color in corresponding registers
+
+     @param color The color to write
+ */
+/**************************************************************************/
+void Adafruit_RA8875::write8BitColor(uint8_t color) {
+  writeCommand(0x63);
+  writeData((color & 0xE0) >> 5);
+  writeCommand(0x64);
+  writeData((color & 0x1C) >> 2);
+  writeCommand(0x65);
+  writeData((color & 0x03));
+}
+
+/**************************************************************************/
+/*!
+     Write 16 Bit color in corresponding registers
+
+     @param color The color to write
+ */
+/**************************************************************************/
+void Adafruit_RA8875::write16BitColor(uint16_t color) {
+  writeCommand(0x63);
+  writeData((color & 0xf800) >> 11);
+  writeCommand(0x64);
+  writeData((color & 0x07e0) >> 5);
+  writeCommand(0x65);
+  writeData((color & 0x001f));
+}
+
+
 /// @cond DISABLE
 #endif
 /// @endcond
